@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Video, Plus } from 'lucide-react';
+import { useSocket } from "../context/SocketProvider";
 
 const Home = () => {
   const [roomId, setRoomId] = useState('');
   const navigate = useNavigate();
+  
+  const socket = useSocket();
 
   const createAndJoinRoom = () => {
     const newRoomId = Math.random().toString(36).substring(2, 7);
     navigate(`/room/${newRoomId}`);
   };
 
+  
   const joinRoom = (e) => {
     e.preventDefault();
     if (roomId.trim()) {
@@ -19,6 +23,8 @@ const Home = () => {
         alert("Please provide a valid room id")
       }
   };
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center">

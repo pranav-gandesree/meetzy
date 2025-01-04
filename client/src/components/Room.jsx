@@ -1,105 +1,177 @@
-// import React, { useEffect, useRef, useState } from 'react';
-// import { useParams, useNavigate } from 'react-router-dom';
-// import { Copy, Video, VideoOff } from 'lucide-react';
-// import { io } from 'socket.io-client';
+
+// import { useEffect, useState } from "react";
+// import { cloneDeep } from "lodash";
+
+// import { useSocket } from "@/context/socket";
+// import usePeer from "@/hooks/usePeer";
+// import useMediaStream from "@/hooks/useMediaStream";
+// import usePlayer from "@/hooks/usePlayer";
+
+// import Player from "@/component/Player";
+// import Bottom from "@/component/Bottom";
+// import CopySection from "@/component/CopySection";
+
+// // import styles from "@/styles/room.module.css";
+// import { useRouter } from "next/router";
 
 // const Room = () => {
-//   const { roomId } = useParams();
-//   const navigate = useNavigate();
-//   const [isCopied, setIsCopied] = useState(false);
-//   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-//   const videoRef = useRef<HTMLVideoElement>(null);
-//   const socketRef = useRef(io('http://localhost:3001'));
+//   const socket = useSocket();
+//   const { roomId } = useRouter().query;
+//   const { peer, myId } = usePeer();
+//   const { stream } = useMediaStream();
+//   const {
+//     players,
+//     setPlayers,
+//     playerHighlighted,
+//     nonHighlightedPlayers,
+//     toggleAudio,
+//     toggleVideo,
+//     leaveRoom
+//   } = usePlayer(myId, roomId, peer);
+
+//   const [users, setUsers] = useState([])
 
 //   useEffect(() => {
-//     if (!roomId) {
-//       navigate('/');
-//       return;
-//     }
+//     if (!socket || !peer || !stream) return;
+//     const handleUserConnected = (newUser) => {
+//       console.log(`user connected in room with userId ${newUser}`);
 
-//     // Connect to socket
-//     const socket = socketRef.current;
-//     socket.emit('join-room', roomId);
+//       const call = peer.call(newUser, stream);
 
-//     // Get video stream
-//     navigator.mediaDevices
-//       .getUserMedia({ video: true, audio: true })
-//       .then((stream) => {
-//         if (videoRef.current) {
-//           videoRef.current.srcObject = stream;
-//         }
-//       })
-//       .catch((error) => {
-//         console.error('Error accessing media devices:', error);
+//       call.on("stream", (incomingStream) => {
+//         console.log(`incoming stream from ${newUser}`);
+//         setPlayers((prev) => ({
+//           ...prev,
+//           [newUser]: {
+//             url: incomingStream,
+//             muted: true,
+//             playing: true,
+//           },
+//         }));
+
+//         setUsers((prev) => ({
+//           ...prev,
+//           [newUser]: call
+//         }))
 //       });
+//     };
+//     socket.on("user-connected", handleUserConnected);
 
 //     return () => {
-//       socket.disconnect();
+//       socket.off("user-connected", handleUserConnected);
 //     };
-//   }, [roomId, navigate]);
+//   }, [peer, setPlayers, socket, stream]);
 
-//   const copyRoomId = () => {
-//     navigator.clipboard.writeText(roomId || '');
-//     setIsCopied(true);
-//     setTimeout(() => setIsCopied(false), 2000);
-//   };
+//   useEffect(() => {
+//     if (!socket) return;
+//     const handleToggleAudio = (userId) => {
+//       console.log(`user with id ${userId} toggled audio`);
+//       setPlayers((prev) => {
+//         const copy = cloneDeep(prev);
+//         copy[userId].muted = !copy[userId].muted;
+//         return { ...copy };
+//       });
+//     };
 
-//   const toggleVideo = () => {
-//     if (videoRef.current?.srcObject) {
-//       const stream = videoRef.current.srcObject;
-//       const videoTrack = stream.getVideoTracks()[0];
-//       videoTrack.enabled = !videoTrack.enabled;
-//       setIsVideoEnabled(!isVideoEnabled);
+//     const handleToggleVideo = (userId) => {
+//       console.log(`user with id ${userId} toggled video`);
+//       setPlayers((prev) => {
+//         const copy = cloneDeep(prev);
+//         copy[userId].playing = !copy[userId].playing;
+//         return { ...copy };
+//       });
+//     };
+
+//     const handleUserLeave = (userId) => {
+//       console.log(`user ${userId} is leaving the room`);
+//       users[userId]?.close()
+//       const playersCopy = cloneDeep(players);
+//       delete playersCopy[userId];
+//       setPlayers(playersCopy);
 //     }
-//   };
+//     socket.on("user-toggle-audio", handleToggleAudio);
+//     socket.on("user-toggle-video", handleToggleVideo);
+//     socket.on("user-leave", handleUserLeave);
+//     return () => {
+//       socket.off("user-toggle-audio", handleToggleAudio);
+//       socket.off("user-toggle-video", handleToggleVideo);
+//       socket.off("user-leave", handleUserLeave);
+//     };
+//   }, [players, setPlayers, socket, users]);
+
+//   useEffect(() => {
+//     if (!peer || !stream) return;
+//     peer.on("call", (call) => {
+//       const { peer: callerId } = call;
+//       call.answer(stream);
+
+//       call.on("stream", (incomingStream) => {
+//         console.log(`incoming stream from ${callerId}`);
+//         setPlayers((prev) => ({
+//           ...prev,
+//           [callerId]: {
+//             url: incomingStream,
+//             muted: true,
+//             playing: true,
+//           },
+//         }));
+
+//         setUsers((prev) => ({
+//           ...prev,
+//           [callerId]: call
+//         }))
+//       });
+//     });
+//   }, [peer, setPlayers, stream]);
+
+//   useEffect(() => {
+//     if (!stream || !myId) return;
+//     console.log(`setting my stream ${myId}`);
+//     setPlayers((prev) => ({
+//       ...prev,
+//       [myId]: {
+//         url: stream,
+//         muted: true,
+//         playing: true,
+//       },
+//     }));
+//   }, [myId, setPlayers, stream]);
 
 //   return (
-//     <div className="min-h-screen bg-gray-900 flex flex-col">
-//       <div className="flex-1 p-4">
-//         <div className="relative max-w-2xl mx-auto aspect-video bg-black rounded-lg overflow-hidden">
-//           <video
-//             ref={videoRef}
-//             autoPlay
-//             playsInline
-//             muted
-//             className="w-full h-full object-cover"
+//     <>
+//       <div className={styles.activePlayerContainer}>
+//         {playerHighlighted && (
+//           <Player
+//             url={playerHighlighted.url}
+//             muted={playerHighlighted.muted}
+//             playing={playerHighlighted.playing}
+//             isActive
 //           />
-//         </div>
+//         )}
 //       </div>
-
-//       <div className="bg-gray-800 p-4">
-//         <div className="max-w-2xl mx-auto flex items-center justify-between">
-//           <div className="flex items-center space-x-2">
-//             <span className="text-gray-300">Room ID: {roomId}</span>
-//             <button
-//               onClick={copyRoomId}
-//               className="p-2 hover:bg-gray-700 rounded-full transition-colors"
-//               title="Copy room ID"
-//             >
-//               <Copy className="w-5 h-5 text-gray-300" />
-//             </button>
-//             {isCopied && (
-//               <span className="text-green-400 text-sm">Copied!</span>
-//             )}
-//           </div>
-
-//           <div className="flex items-center space-x-4">
-//             <button
-//               onClick={toggleVideo}
-//               className={`p-3 rounded-full ${
-//                 isVideoEnabled ? 'bg-gray-700' : 'bg-red-500'
-//               }`}
-//             >
-//               {isVideoEnabled ? (
-//                 <Video className="w-6 h-6 text-white" />
-//               ) : (
-//                 <VideoOff className="w-6 h-6 text-white" />
-//               )}
-//             </button>
-//           </div>
-//         </div>
+//       <div className={styles.inActivePlayerContainer}>
+//         {Object.keys(nonHighlightedPlayers).map((playerId) => {
+//           const { url, muted, playing } = nonHighlightedPlayers[playerId];
+//           return (
+//             <Player
+//               key={playerId}
+//               url={url}
+//               muted={muted}
+//               playing={playing}
+//               isActive={false}
+//             />
+//           );
+//         })}
 //       </div>
-//     </div>
+//       <CopySection roomId={roomId}/>
+//       <Bottom
+//         muted={playerHighlighted?.muted}
+//         playing={playerHighlighted?.playing}
+//         toggleAudio={toggleAudio}
+//         toggleVideo={toggleVideo}
+//         leaveRoom={leaveRoom}
+//       />
+//     </>
 //   );
 // };
 
@@ -107,14 +179,200 @@
 
 
 
-import React from 'react'
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { useEffect, useState } from "react";
+import { cloneDeep } from "lodash";
+
+import { useSocket } from "@/context/socket";
+import usePeer from "@/hooks/usePeer";
+import useMediaStream from "@/hooks/useMediaStream";
+import usePlayer from "@/hooks/usePlayer";
+
+import Player from "@/component/Player";
+import Bottom from "@/component/Bottom";
+import CopySection from "@/component/CopySection";
+
+import { useRouter } from "next/router";
 
 const Room = () => {
-  return (
-    <div>
-      room id
-    </div>
-  )
-}
+  const socket = useSocket();
+  const { roomId } = useRouter().query;
+  const { peer, myId } = usePeer();
+  const { stream } = useMediaStream();
+  const {
+    players,
+    setPlayers,
+    playerHighlighted,
+    nonHighlightedPlayers,
+    toggleAudio,
+    toggleVideo,
+    leaveRoom
+  } = usePlayer(myId, roomId, peer);
 
-export default Room
+  const [users, setUsers] = useState([])
+
+  useEffect(() => {
+    if (!socket || !peer || !stream) return;
+    const handleUserConnected = (newUser) => {
+      console.log(`user connected in room with userId ${newUser}`);
+
+      const call = peer.call(newUser, stream);
+
+      call.on("stream", (incomingStream) => {
+        console.log(`incoming stream from ${newUser}`);
+        setPlayers((prev) => ({
+          ...prev,
+          [newUser]: {
+            url: incomingStream,
+            muted: true,
+            playing: true,
+          },
+        }));
+
+        setUsers((prev) => ({
+          ...prev,
+          [newUser]: call
+        }))
+      });
+    };
+    socket.on("user-connected", handleUserConnected);
+
+    return () => {
+      socket.off("user-connected", handleUserConnected);
+    };
+  }, [peer, setPlayers, socket, stream]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleToggleAudio = (userId) => {
+      console.log(`user with id ${userId} toggled audio`);
+      setPlayers((prev) => {
+        const copy = cloneDeep(prev);
+        copy[userId].muted = !copy[userId].muted;
+        return { ...copy };
+      });
+    };
+
+    const handleToggleVideo = (userId) => {
+      console.log(`user with id ${userId} toggled video`);
+      setPlayers((prev) => {
+        const copy = cloneDeep(prev);
+        copy[userId].playing = !copy[userId].playing;
+        return { ...copy };
+      });
+    };
+
+    const handleUserLeave = (userId) => {
+      console.log(`user ${userId} is leaving the room`);
+      users[userId]?.close()
+      const playersCopy = cloneDeep(players);
+      delete playersCopy[userId];
+      setPlayers(playersCopy);
+    }
+    socket.on("user-toggle-audio", handleToggleAudio);
+    socket.on("user-toggle-video", handleToggleVideo);
+    socket.on("user-leave", handleUserLeave);
+    return () => {
+      socket.off("user-toggle-audio", handleToggleAudio);
+      socket.off("user-toggle-video", handleToggleVideo);
+      socket.off("user-leave", handleUserLeave);
+    };
+  }, [players, setPlayers, socket, users]);
+
+  useEffect(() => {
+    if (!peer || !stream) return;
+    peer.on("call", (call) => {
+      const { peer: callerId } = call;
+      call.answer(stream);
+
+      call.on("stream", (incomingStream) => {
+        console.log(`incoming stream from ${callerId}`);
+        setPlayers((prev) => ({
+          ...prev,
+          [callerId]: {
+            url: incomingStream,
+            muted: true,
+            playing: true,
+          },
+        }));
+
+        setUsers((prev) => ({
+          ...prev,
+          [callerId]: call
+        }))
+      });
+    });
+  }, [peer, setPlayers, stream]);
+
+  useEffect(() => {
+    if (!stream || !myId) return;
+    console.log(`setting my stream ${myId}`);
+    setPlayers((prev) => ({
+      ...prev,
+      [myId]: {
+        url: stream,
+        muted: true,
+        playing: true,
+      },
+    }));
+  }, [myId, setPlayers, stream]);
+
+  return (
+    <>
+      <div className="absolute w-9/12 left-0 right-0 mx-auto top-20 bottom-50px h-[calc(100vh-20px-100px)]">
+        {playerHighlighted && (
+          <Player
+            url={playerHighlighted.url}
+            muted={playerHighlighted.muted}
+            playing={playerHighlighted.playing}
+            isActive
+          />
+        )}
+      </div>
+      <div className="absolute flex flex-col overflow-y-auto w-50 h-[calc(100vh-20px)] right-20 top-20px">
+        {Object.keys(nonHighlightedPlayers).map((playerId) => {
+          const { url, muted, playing } = nonHighlightedPlayers[playerId];
+          return (
+            <Player
+              key={playerId}
+              url={url}
+              muted={muted}
+              playing={playing}
+              isActive={false}
+            />
+          );
+        })}
+      </div>
+      <CopySection roomId={roomId}/>
+      <Bottom
+        muted={playerHighlighted?.muted}
+        playing={playerHighlighted?.playing}
+        toggleAudio={toggleAudio}
+        toggleVideo={toggleVideo}
+        leaveRoom={leaveRoom}
+      />
+    </>
+  );
+};
+
+export default Room;
