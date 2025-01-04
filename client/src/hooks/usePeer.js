@@ -1,8 +1,8 @@
 import { useContext, useState, useEffect, useRef } from "react";
-import { SocketContext } from "./context/socket"; 
+import { useSocket } from "../context/SocketProvider";
 
 const usePeer = (roomId) => {
-  const socket = useContext(SocketContext); 
+  const socket = useSocket 
   const [peer, setPeer] = useState(null);
   const [myId, setMyId] = useState("");
   const isPeerSet = useRef(false);

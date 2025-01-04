@@ -16,6 +16,13 @@ const Player = (props) => {
           playing={playing}
           width="100%"
           height="100%"
+          config={{
+            file: {
+              attributes: {
+                controls: true
+              }
+            }
+          }}
         />
       ) : (
         <UserSquare2 className="text-white" size={isActive ? 400 : 150} />
